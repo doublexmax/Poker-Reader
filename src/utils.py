@@ -12,4 +12,7 @@ def convertToNum(val):
 	return card_values[val]
 
 def convertToWeight(suit):
-	return suit
+	if isinstance(suit, int):
+		return suit
+	else:
+		return suit_weight[suit]

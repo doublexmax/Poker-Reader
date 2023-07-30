@@ -17,7 +17,7 @@ def evaluate(*cards, community = []):
 				'13s', '13d', '13h', '13c', '14s', '14d', '14h', '14c']
 
 	parsedCards = []
-	for card in cards:
+	for i, card in enumerate(cards):
 		cardOne = card[0]
 		cardTwo = card[1]
 
@@ -27,10 +27,10 @@ def evaluate(*cards, community = []):
 		cardTwoVal = convertToNum(cardTwo[:-1])
 		cardTwoSuit = convertToWeight(cardTwo[-1])
 
-		parsedCards.append((cardOneVal, cardOneSuit, cardTwoVal, cardTwoSuit))
+		parsedCards.append((cardOneVal, cardOneSuit, cardTwoVal, cardTwoSuit, i))
 
-		availableCards.remove(str(cardOneVal) + cardOneSuit)
-		availableCards.remove(str(cardTwoVal) + cardTwoSuit)
+		availableCards.remove(str(cardOneVal) + cardOne[-1])
+		availableCards.remove(str(cardTwoVal) + cardTwo[-1])
 
 	communityCardsParsed = []
 	for card in community:
@@ -39,7 +39,7 @@ def evaluate(*cards, community = []):
 
 		communityCardsParsed.append((cardVal, cardWeight))
 
-		availableCards.remove(str(cardVal) + cardWeight)
+		availableCards.remove(str(cardVal) + card[-1])
 
 	book = {}
 
@@ -59,15 +59,15 @@ def calculate_equity(cards, community, available, book = {}):
 		winner = (0,(0,))
 		winners = []
 
-		for i, player in enumerate(cards):
+		for player in cards:
 			highHand = (0,(0,))
-			suits = list(combinations([convertToWeight(player[1]), convertToWeight(player[3]), \
-									convertToWeight(community[0][1]), convertToWeight(community[1][1]), convertToWeight(community[2][1]), \
-									convertToWeight(community[3][1]), convertToWeight(community[4][1]) \
+			suits = list(combinations([(player[1]), (player[3]), \
+									(community[0][1]), (community[1][1]), (community[2][1]), \
+									(community[3][1]), (community[4][1]) \
 									], 5))
-			combos = list(combinations([convertToNum(player[0]), convertToNum(player[2]), \
-									convertToNum(community[0][0]), convertToNum(community[1][0]), convertToNum(community[2][0]), \
-									convertToNum(community[3][0]), convertToNum(community[4][0]) \
+			combos = list(combinations([(player[0]), (player[2]), \
+									(community[0][0]), (community[1][0]), (community[2][0]), \
+									(community[3][0]), (community[4][0]) \
 									], 5))
 
 			#print(suits)
@@ -78,7 +78,7 @@ def calculate_equity(cards, community, available, book = {}):
 				if compare(highHand, handValue) == -1:
 					highHand = handValue
 
-			bestHands[i] = highHand
+			bestHands[player[4]] = highHand
 
 		for x in bestHands:
 			if compare(winner, bestHands[x]) == -1:
@@ -87,20 +87,21 @@ def calculate_equity(cards, community, available, book = {}):
 			elif compare(winner, bestHands[x]) == 0:
 				winners.append(x)
 
-		for player in winners:
-			book[player] = book.get(player, 0) + 1
-			if player == 0:
-				print(bestHands[0])
+		if len(winners) > 1:
+			book["tie"] = book.get("tie", 0) + 1
+		else:
+			book[winners[0]] = book.get(winners[0], 0) + 1
 
 		return book
 
 	else:
 		for card in available:
 			#print(list(filter(lambda x: x[-1] != card[-1] and x[:-1] != card[:-1], available)))
-			print(calculate_equity(cards, community + [(card[:-1], card[-1])], \
+			print(calculate_equity(cards, community + [(convertToNum(card[:-1]), convertToWeight(card[-1]))], \
 				list(filter(lambda x: x[-1] != card[-1] or x[:-1] != card[:-1], available)), book))
 
 def highestHand(cards, suits):
+	#print(cards, suits)
 	lastSuit = suits[0]
 	highCard = max(cards)
 	flush = True
@@ -113,17 +114,17 @@ def highestHand(cards, suits):
 	occurrences = {}
 
 	if flush:
-		straight_check = 0
-		straight_mult = 1
-		for card in cards:
-			straight_check = straight_check + card * straight_mult
-			straight_mult = straight_mult * -1
+		straight_sum = sum(cards)
+		lowCard = min(cards)
 
-		if straight_check % 2 == 0:
+		if straight_sum == highCard * (highCard + 1) / 2 - lowCard * (lowCard - 1) / 2 or (highCard == 14 and straight_sum == 28):
+			if highCard == 14 and lowCard == 10:
+				return (9, (14,))
 			return (8, (highCard,))
 
 		return (5, (highCard,))
 
+	duplicate = False
 	straight_max = 0
 	straight_min = 15
 	for card in cards:
@@ -132,6 +133,7 @@ def highestHand(cards, suits):
 
 		if card in occurrences:
 			occurrences[card] += 1
+			duplicate = True
 		else:
 			occurrences[card] = 1
 
@@ -155,10 +157,12 @@ def highestHand(cards, suits):
 
 	# full house
 	if trips and len(pairs):
-		return (6, (trips, (max(pairs),)))
+		return (6, (trips, (pairs[0])))
 
 	# straight
-	if straight_max - straight_min == 4:
+	if not duplicate and ((straight_max - straight_min == 4 and \
+		occurrences.get(straight_min + 1, 0) and occurrences.get(straight_min + 2, 0) and occurrences.get(straight_min + 3, 0) and occurrences.get(straight_min + 4, 0)) or \
+		(sum(cards) == 28 and highCard == 14)):
 		return (4, (highCard,))
 
 	if trips:
@@ -180,7 +184,7 @@ def highestHand(cards, suits):
 
 	if len(pairs) == 1:
 		missingCards = filter(lambda x: x != pairs[0], cards)
-		return (2, sorted(missingCards, reverse = True))
+		return (1, [pairs[0]] + sorted(missingCards, reverse = True))
 	
 	return (0, sorted(cards, reverse = True))
 
